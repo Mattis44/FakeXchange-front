@@ -1,99 +1,77 @@
 import {useParams} from "react-router-dom";
-import {useWebSocket} from "../hooks/useWebSocket";
-import {useEffect, useState} from "react";
-
-type Order = {
-    id: string;
-    price: number;
-    remaining: number;
-};
+import {useOrderbook} from "../hooks/useOrderbook";
+import Orderbook from "../components/orderbook/View";
+import {Box} from "@mui/material";
+import Asset from "../components/Asset";
+import Chart from "../components/Chart";
+import OrderForm from "../components/orderform/View";
+import {OrderFormProvider} from "../contexts/OrderFormProvider";
+import AccountSummary from "../components/AccountSummary";
+import Assets from "../components/Assets";
+import { useCandles } from "../hooks/useCandles";
 
 export default function Trade() {
-    const {subscribe, isConnected, sendMessage, unsubscribe} = useWebSocket();
-    const {quote} = useParams();
-
-    const [asks, setAsks] = useState<Order[]>([]);
-    const [bids, setBids] = useState<Order[]>([]);
-    const [lastPrice, setLastPrice] = useState<number | null>(null);
-
-    useEffect(() => {
-        if (!isConnected || !quote) return;
-
-        const handleInit = (data: any) => {
-            setAsks(data.asks || []);
-            setBids(data.bids || []);
-        };
-
-        const handleDelta = (msg: any) => {
-            const {order, action} = msg;
-            const update = (list: Order[], isAdd: boolean) => {
-                if (isAdd) {
-                    return [...list, order].sort((a, b) =>
-                        order.side === "buy"
-                            ? b.price - a.price
-                            : a.price - b.price
-                    );
-                } else {
-                    return list.filter((o) => o.id !== order.id);
-                }
-            };
-
-            if (order.side === "buy") {
-                setBids((prev) => update(prev, action === "add"));
-            } else {
-                setAsks((prev) => update(prev, action === "add"));
-            }
-        };
-
-        const handleTrade = (msg: any) => {
-            setLastPrice(msg.price || null);
-        };
-
-        subscribe("orderbook.init", handleInit);
-        subscribe("orderbook.delta", handleDelta);
-        subscribe("trade", handleTrade);
-
-        sendMessage({
-            type: "orderbook.subscribe",
-            payload: {
-                symbol: quote,
-            },
-        });
-
-        return () =>
-            unsubscribe("orderbook.init", () => {
-                console.log("Unsubscribed from orderbook updates for", quote);
-            });
-    }, [isConnected, quote, sendMessage, subscribe, unsubscribe]);
+    const {symbol} = useParams();
+    const {asks, bids, price, base, quote} = useOrderbook(symbol);
+    const {candles} = useCandles(symbol || "TESTUSD", "1m");
+    
 
     return (
-        <div style={{padding: "1rem", fontFamily: "monospace"}}>
-            <h2>Trade {quote}</h2>
-            <h3>Last Price: {lastPrice ? lastPrice.toFixed(2) : "-"}</h3>
-
-            <div style={{display: "flex", gap: "2rem"}}>
-                <div>
-                    <h4 style={{color: "red"}}>Asks</h4>
-                    <ul>
-                        {asks.slice(0, 10).map((o) => (
-                            <li key={o.id}>
-                                {o.price.toFixed(2)} x {o.remaining.toFixed(2)}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-
-                <div>
-                    <h4 style={{color: "green"}}>Bids</h4>
-                    <ul>
-                        {bids.slice(0, 10).map((o) => (
-                            <li key={o.id}>
-                                {o.price.toFixed(2)} x {o.remaining.toFixed(2)}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            </div>
-        </div>
+        <Box
+            sx={{
+                display: "flex",
+                flexDirection: "column",
+                padding: 2,
+                gap: 1,
+            }}
+        >
+            <Box sx={{display: "flex", gap: 1}}>
+                <Box
+                    sx={{
+                        width: "60%",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 1,
+                    }}
+                >
+                    <Asset quote={quote} base={base} price={price} />
+                    <Chart symbol={symbol || "TESTUSD"} candles={candles}/>
+                </Box>
+                <Box
+                    sx={{
+                        width: "20%",
+                    }}
+                >
+                    <Orderbook
+                        asks={asks}
+                        bids={bids}
+                        price={price}
+                        base={base}
+                        quote={quote}
+                    />
+                </Box>
+                <Box
+                    sx={{
+                        width: "20%",
+                    }}
+                >
+                    <OrderFormProvider
+                        base={base}
+                        quote={quote}
+                        price={price?.lastPrice}
+                    >
+                        <OrderForm />
+                    </OrderFormProvider>
+                </Box>
+            </Box>
+            <Box sx={{display: "flex", gap: 1}}>
+                <Box sx={{width: "80%"}}>
+                    <AccountSummary />
+                </Box>
+                <Box sx={{width: "20%"}}>
+                    <Assets />
+                </Box>
+            </Box>
+        </Box>
     );
 }

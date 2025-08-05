@@ -15,26 +15,7 @@ export const WebSocketProvider = ({children}: {children: React.ReactNode}) => {
 
         socket.onopen = () => {
             setIsConnected(true);
-            console.log("WebSocket connected");
         };
-
-        socket.onclose = () => {
-            setIsConnected(false);
-            console.log("WebSocket disconnected");
-            setTimeout(connect, 2000);
-        };
-
-        socket.onerror = (error) => {
-            console.error("WebSocket error:", error);
-            socket.close();
-        };
-    }, []);
-
-    useEffect(() => {
-        const socket = new WebSocket(CONSTANTS.API.WS_URL);
-        socketRef.current = socket;
-
-        socket.onopen = () => setIsConnected(true);
 
         socket.onmessage = (event) => {
             try {
@@ -49,13 +30,21 @@ export const WebSocketProvider = ({children}: {children: React.ReactNode}) => {
             }
         };
 
-        socket.onclose = () => setIsConnected(false);
-        socket.onerror = () => setIsConnected(false);
+        socket.onclose = () => {
+            setIsConnected(false);
+            setTimeout(connect, 2000);
+        };
 
-        return () => {
+        socket.onerror = (error) => {
+            console.error("🚨 WebSocket error:", error);
             socket.close();
         };
     }, []);
+
+    useEffect(() => {
+        connect();
+        return () => socketRef.current?.close();
+    }, [connect]);
 
     const sendMessage = useCallback((data: unknown) => {
         if (socketRef.current?.readyState === WebSocket.OPEN) {

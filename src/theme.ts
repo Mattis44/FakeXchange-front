@@ -22,6 +22,19 @@ const theme = createTheme({
             dark: red.A700,
             contrastText: "rgb(0, 0, 0, 0.87)",
         },
+        background: {
+            default: "#121212",
+            paper: "#1d1d1d",
+        },
+        text: {
+            primary: "rgb(255, 255, 255, 0.87)",
+            secondary: "rgb(255, 255, 255, 0.6)",
+            disabled: "rgb(255, 255, 255, 0.38)",
+        },
+        success: {
+            main: "#26a69a",
+            
+        }
     },
 });
 

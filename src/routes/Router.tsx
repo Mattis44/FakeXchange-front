@@ -8,7 +8,11 @@ const router = createBrowserRouter([
         element: <Home />,
     },
     {
-        path: "trade/:quote",
+        path: "trade",
+        element: <Trade />
+    },
+    {
+        path: "trade/:symbol",
         element: <Trade />
     }
 ]);
