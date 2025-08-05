@@ -10,5 +10,5 @@ export function aggregateOrders(orders: Order[]): AggregatedOrder[] {
     }
 
     return Array.from(map.entries())
-        .map(([price, size]) => ({price, size}))
+        .map(([price, size]) => ({ price, size, total: size }))
 }

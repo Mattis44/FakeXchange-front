@@ -1,10 +1,10 @@
-import {useCallback, useEffect, useState} from "react";
-import {useWebSocket} from "./useWebSocket";
-import type {Order} from "../types/Market";
+import { useCallback, useEffect, useState } from "react";
+import { useWebSocket } from "./useWebSocket";
+import type { Order } from "../types/Market";
 import axios from "axios";
 
 export const useOrderbook = (symbol: string | undefined) => {
-    const {subscribe, isConnected, sendMessage, unsubscribe} = useWebSocket();
+    const { subscribe, isConnected, sendMessage, unsubscribe } = useWebSocket();
     const [asks, setAsks] = useState<Order[]>([]);
     const [bids, setBids] = useState<Order[]>([]);
     const [base, setBase] = useState<string>("");
@@ -17,7 +17,9 @@ export const useOrderbook = (symbol: string | undefined) => {
     const fetchOrderbook = useCallback(async () => {
         if (!symbol) return;
         try {
-            const res = await axios.get(`http://localhost:3000/orderbook/${symbol}`);
+            const res = await axios.get(
+                `http://localhost:3000/orderbook/${symbol}`
+            );
             const data = res.data;
             setAsks(data.asks || []);
             setBids(data.bids || []);
@@ -32,28 +34,60 @@ export const useOrderbook = (symbol: string | undefined) => {
         }
     }, [symbol]);
 
-    const handleDelta = useCallback((msg: any) => {
-        const {order, action} = msg;
-        const update = (list: Order[], isAdd: boolean) => {
-            if (isAdd) {
-                const withoutExisting = list.filter((o) => o.id !== order.id);
-                const updated = [...withoutExisting, order];
-                return order.side === "buy"
-                    ? updated.sort((a, b) => b.price - a.price)
-                    : updated.sort((a, b) => a.price - b.price);
-            } else {
-                return list.filter((o) => o.id !== order.id);
+    const applyDelta = (list: Order[], delta: { action: string; order: Order }) => {
+        if (delta.action === "remove") {
+            return list.filter((o) => o.id !== delta.order.id);
+        }
+        if (delta.action === "add" || delta.action === "update") {
+            const idx = list.findIndex((o) => o.id === delta.order.id);
+            if (idx >= 0) {
+                const updated = [...list];
+                updated[idx] = { ...updated[idx], remaining: delta.order.remaining };
+                return updated;
             }
-        };
+            return [...list, delta.order];
+        }
+        return list;
+    };
 
+    const handleDeltaBatch = useCallback((msg: any) => {
+        const { deltas } = msg;
+        if (!Array.isArray(deltas)) return;
+
+        setBids((prev) =>
+            deltas
+                .filter((d) => d.order.side === "buy")
+                .reduce((acc, d) => applyDelta(acc, d), prev)
+                .sort((a: { price: number; }, b: { price: number; }) => b.price - a.price)
+        );
+
+        setAsks((prev) =>
+            deltas
+                .filter((d) => d.order.side === "sell")
+                .reduce((acc, d) => applyDelta(acc, d), prev)
+                .sort((a: { price: number; }, b: { price: number; }) => a.price - b.price)
+        );
+    }, []);
+
+    const handleDeltaSingle = useCallback((msg: any) => {
+        const { order, action } = msg;
         if (order.side === "buy") {
-            setBids((prev) => update(prev, action === "add"));
+            setBids((prev) => applyDelta(prev, { action, order }).sort((a, b) => b.price - a.price));
         } else {
-            setAsks((prev) => update(prev, action === "add"));
+            setAsks((prev) => applyDelta(prev, { action, order }).sort((a, b) => a.price - b.price));
         }
     }, []);
 
-    const handleTrade = useCallback((msg: any) => {
+    const handleTradeBatch = useCallback((msg: any) => {
+        const { trades } = msg;
+        if (!Array.isArray(trades) || trades.length === 0) return;
+        setPrice((prev) => ({
+            lastPrice: trades[trades.length - 1].price || null,
+            beforeLastPrice: prev?.lastPrice || null,
+        }));
+    }, []);
+
+    const handleTradeSingle = useCallback((msg: any) => {
         setPrice((prev) => ({
             lastPrice: msg.price || null,
             beforeLastPrice: prev?.lastPrice || null,
@@ -65,21 +99,26 @@ export const useOrderbook = (symbol: string | undefined) => {
 
         fetchOrderbook();
 
-        subscribe("orderbook.delta", handleDelta);
-        subscribe("trade.executed", handleTrade);
+        subscribe("orderbook.delta.batch", handleDeltaBatch);
+        subscribe("trade.executed.batch", handleTradeBatch);
+
+        subscribe("orderbook.delta", handleDeltaSingle);
+        subscribe("trade.executed", handleTradeSingle);
 
         sendMessage({
             type: "orderbook.subscribe",
-            payload: {symbol},
+            payload: { symbol },
         });
         sendMessage({
             type: "trade.subscribe",
-            payload: {symbol},
+            payload: { symbol },
         });
 
         return () => {
-            unsubscribe("orderbook.delta", handleDelta);
-            unsubscribe("trade.executed", handleTrade);
+            unsubscribe("orderbook.delta.batch", handleDeltaBatch);
+            unsubscribe("trade.executed.batch", handleTradeBatch);
+            unsubscribe("orderbook.delta", handleDeltaSingle);
+            unsubscribe("trade.executed", handleTradeSingle);
         };
     }, [
         isConnected,
@@ -87,10 +126,12 @@ export const useOrderbook = (symbol: string | undefined) => {
         subscribe,
         unsubscribe,
         sendMessage,
-        handleDelta,
-        handleTrade,
         fetchOrderbook,
+        handleDeltaBatch,
+        handleTradeBatch,
+        handleDeltaSingle,
+        handleTradeSingle,
     ]);
 
-    return {asks, bids, price, base, quote};
+    return { asks, bids, price, base, quote };
 };

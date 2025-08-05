@@ -16,9 +16,15 @@ export default function Amount({orders, side}: AmountProps) {
             setAggregatedAsks(Array(10).fill({price: 0, size: 0, total: 0}));
             return;
         }
-        const aggregated = aggregateOrders(orders).sort(
-            (a, b) => b.price - a.price
-        ).slice(0, 10);
+        const aggregated = aggregateOrders(orders)
+            .sort((a, b) =>
+                side === "sell" ? a.price - b.price : b.price - a.price
+            )
+            .slice(0, 10);
+
+        if (side === "sell") {
+            aggregated.reverse();
+        }
         if (aggregated.length < 10) {
             if (side === "sell") {
                 aggregated.unshift(
@@ -33,7 +39,7 @@ export default function Amount({orders, side}: AmountProps) {
         setAggregatedAsks(aggregated);
     }, [orders, side]);
     return (
-        <div style={{display: "flex", flexDirection: "column", gap: 2 }}>
+        <div style={{display: "flex", flexDirection: "column", gap: 2}}>
             {aggregatedAsks?.map((ask, index) => (
                 <Typography
                     key={`${ask.price}-${ask.size}-${index}`}

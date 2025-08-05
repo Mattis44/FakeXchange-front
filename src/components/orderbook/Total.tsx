@@ -17,9 +17,15 @@ export default function Total({orders, side}: AmountProps) {
             return;
         }
 
-        const aggregated = aggregateOrders(orders).sort(
-            (a, b) => b.price - a.price
-        ).slice(0, 10);
+        const aggregated = aggregateOrders(orders)
+            .sort((a, b) =>
+                side === "sell" ? a.price - b.price : b.price - a.price
+            )
+            .slice(0, 10);
+
+        if (side === "sell") {
+            aggregated.reverse();
+        }
         let withTotal: AggregatedOrder[] = [];
 
         if (side === "sell") {

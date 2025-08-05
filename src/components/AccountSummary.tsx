@@ -8,7 +8,7 @@ import OrderHistory from "./AccountSummaryTabs/OrderHistory";
 
 export default function AccountSummary() {
     const [tabValue, setTabValue] = useState("positions");
-    // Get all infos for summary so we don't reload them in each tab
+    // Get all infos for summary so we don't reload them in each tab (TODO)
     return (
         <Box
             sx={{
